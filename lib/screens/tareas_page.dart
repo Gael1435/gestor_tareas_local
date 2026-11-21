@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/app_database.dart';
 import '../models/tarea.dart';
 
-/// Pantalla principal con persistencia SQLite local (Etapa 2: Alta y Consulta).
+/// Pantalla principal con persistencia SQLite local y operaciones CRUD completas (F1–F8).
 class TareasPage extends StatefulWidget {
   final AppDatabase? database;
 
@@ -27,6 +27,7 @@ class _TareasPageState extends State<TareasPage> {
     _cargarTareas();
   }
 
+  /// F2. Consulta las tareas almacenadas en SQLite fuera de build().
   Future<void> _cargarTareas() async {
     try {
       final tareas = await _db.obtenerTareas();
@@ -36,14 +37,15 @@ class _TareasPageState extends State<TareasPage> {
       });
     } catch (e) {
       if (!mounted) return;
-      _mostrarMensaje('Error al consultar tareas: $e');
+      _mostrarMensaje('Error al cargar las tareas: $e');
     }
   }
 
+  /// F1. Alta de nueva tarea con validación de entrada vacía o de solo espacios.
   Future<void> _agregarTarea() async {
     final titulo = _tituloController.text.trim();
     if (titulo.isEmpty) {
-      _mostrarMensaje('Escribe un título válido (no vacío).');
+      _mostrarMensaje('Escribe un título válido (no puede estar vacío).');
       return;
     }
 
@@ -52,20 +54,77 @@ class _TareasPageState extends State<TareasPage> {
       _tituloController.clear();
       await _cargarTareas();
     } catch (e) {
-      _mostrarMensaje('No se pudo guardar la tarea: $e');
+      _mostrarMensaje('No se pudo registrar la tarea: $e');
     }
   }
 
-  void _alternarCompletada(Tarea tarea, bool completada) {
-    _mostrarMensaje('Implementar actualización de tarea');
+  /// F4. Actualiza el estado (completada / pendiente) de la tarea en SQLite.
+  Future<void> _alternarCompletada(Tarea tarea, bool completada) async {
+    try {
+      await _db.actualizarEstadoTarea(tarea.id, completada);
+      await _cargarTareas();
+    } catch (e) {
+      _mostrarMensaje('No se pudo actualizar el estado de la tarea: $e');
+    }
   }
 
-  void _editarTarea(Tarea tarea) {
-    _mostrarMensaje('Implementar edición de título');
+  /// F3. Abre un diálogo para editar el título de una tarea existente y guarda el cambio en SQLite.
+  Future<void> _editarTarea(Tarea tarea) async {
+    final editController = TextEditingController(text: tarea.titulo);
+    final nuevoTitulo = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Editar tarea'),
+          content: TextField(
+            controller: editController,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Título de la tarea',
+              border: OutlineInputBorder(),
+            ),
+            onSubmitted: (valor) => Navigator.of(dialogContext).pop(valor),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(editController.text),
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+    editController.dispose();
+
+    if (nuevoTitulo == null) return;
+
+    final limpio = nuevoTitulo.trim();
+    if (limpio.isEmpty) {
+      _mostrarMensaje('El título editado no puede estar vacío.');
+      return;
+    }
+
+    try {
+      await _db.actualizarTituloTarea(tarea.id, limpio);
+      await _cargarTareas();
+    } catch (e) {
+      _mostrarMensaje('No se pudo editar la tarea: $e');
+    }
   }
 
-  void _eliminarTarea(Tarea tarea) {
-    _mostrarMensaje('Implementar eliminación de tarea');
+  /// F5. Elimina una tarea en SQLite utilizando su identificador único.
+  Future<void> _eliminarTarea(Tarea tarea) async {
+    try {
+      await _db.eliminarTareaPorId(tarea.id);
+      await _cargarTareas();
+    } catch (e) {
+      _mostrarMensaje('No se pudo eliminar la tarea: $e');
+    }
   }
 
   void _mostrarMensaje(String mensaje) {
@@ -127,7 +186,14 @@ class _TareasPageState extends State<TareasPage> {
                                 }
                               },
                             ),
-                            title: Text(tarea.titulo),
+                            title: Text(
+                              tarea.titulo,
+                              style: TextStyle(
+                                decoration: tarea.completada
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                              ),
+                            ),
                             subtitle: Text('ID: ${tarea.id}'),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,

@@ -82,4 +82,34 @@ class AppDatabase extends _$AppDatabase {
       TareasCompanion.insert(titulo: tituloLimpio),
     );
   }
+
+  /// F3. Edición: modifica el título de una tarea existente por su [id]
+  /// (`UPDATE tareas SET titulo = ? WHERE id = ?`).
+  ///
+  /// Lanza [ArgumentError] si [nuevoTitulo] está vacío o compuesto solo por espacios.
+  Future<bool> actualizarTituloTarea(int id, String nuevoTitulo) async {
+    final tituloLimpio = nuevoTitulo.trim();
+    if (tituloLimpio.isEmpty) {
+      throw ArgumentError('El nuevo título no puede estar vacío.');
+    }
+    final filasAfectadas = await (update(tareas)
+          ..where((t) => t.id.equals(id)))
+        .write(TareasCompanion(titulo: Value(tituloLimpio)));
+    return filasAfectadas > 0;
+  }
+
+  /// F4. Estado: marca una tarea como completada o pendiente por su [id]
+  /// (`UPDATE tareas SET completada = ? WHERE id = ?`).
+  Future<bool> actualizarEstadoTarea(int id, bool completada) async {
+    final filasAfectadas = await (update(tareas)
+          ..where((t) => t.id.equals(id)))
+        .write(TareasCompanion(completada: Value(completada)));
+    return filasAfectadas > 0;
+  }
+
+  /// F5. Eliminación: borra una tarea utilizando su identificador [id]
+  /// (`DELETE FROM tareas WHERE id = ?`).
+  Future<int> eliminarTareaPorId(int id) async {
+    return (delete(tareas)..where((t) => t.id.equals(id))).go();
+  }
 }
