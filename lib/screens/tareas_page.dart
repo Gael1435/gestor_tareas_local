@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../data/app_database.dart';
 import '../models/tarea.dart';
 
-// Pantalla base SIN persistencia ni operaciones CRUD implementadas.
-// Conserva las indicaciones TODO para orientar tu trabajo.
+/// Pantalla principal con persistencia SQLite local (Etapa 2: Alta y Consulta).
 class TareasPage extends StatefulWidget {
-  const TareasPage({super.key});
+  final AppDatabase? database;
+
+  const TareasPage({super.key, this.database});
 
   @override
   State<TareasPage> createState() => _TareasPageState();
@@ -12,40 +14,73 @@ class TareasPage extends StatefulWidget {
 
 class _TareasPageState extends State<TareasPage> {
   final TextEditingController _tituloController = TextEditingController();
+  late final AppDatabase _db;
+  late final bool _cerrarBaseAlSalir;
 
   List<Tarea> _tareas = [];
 
   @override
   void initState() {
     super.initState();
-
+    _db = widget.database ?? AppDatabase();
+    _cerrarBaseAlSalir = widget.database == null;
+    _cargarTareas();
   }
 
-  void _agregarTarea() {
-    _pendiente('Implementar registro de tarea');
+  Future<void> _cargarTareas() async {
+    try {
+      final tareas = await _db.obtenerTareas();
+      if (!mounted) return;
+      setState(() {
+        _tareas = tareas;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      _mostrarMensaje('Error al consultar tareas: $e');
+    }
+  }
+
+  Future<void> _agregarTarea() async {
+    final titulo = _tituloController.text.trim();
+    if (titulo.isEmpty) {
+      _mostrarMensaje('Escribe un título válido (no vacío).');
+      return;
+    }
+
+    try {
+      await _db.insertarTarea(titulo);
+      _tituloController.clear();
+      await _cargarTareas();
+    } catch (e) {
+      _mostrarMensaje('No se pudo guardar la tarea: $e');
+    }
   }
 
   void _alternarCompletada(Tarea tarea, bool completada) {
-    _pendiente('Implementar actualización de tarea');
+    _mostrarMensaje('Implementar actualización de tarea');
   }
 
   void _editarTarea(Tarea tarea) {
-    _pendiente('Implementar edición de título');
+    _mostrarMensaje('Implementar edición de título');
   }
 
   void _eliminarTarea(Tarea tarea) {
-    _pendiente('Implementar eliminación de tarea');
+    _mostrarMensaje('Implementar eliminación de tarea');
   }
 
-  void _pendiente(String mensaje) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje)),
-    );
+  void _mostrarMensaje(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(mensaje)));
   }
 
   @override
   void dispose() {
     _tituloController.dispose();
+    if (_cerrarBaseAlSalir) {
+      _db.close();
+    }
     super.dispose();
   }
 
@@ -60,6 +95,7 @@ class _TareasPageState extends State<TareasPage> {
           children: [
             TextField(
               controller: _tituloController,
+              onSubmitted: (_) => _agregarTarea(),
               decoration: const InputDecoration(
                 labelText: 'Nueva tarea',
                 border: OutlineInputBorder(),
